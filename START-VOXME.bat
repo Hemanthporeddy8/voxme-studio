@@ -12,7 +12,7 @@ echo.
 python --version >nul 2>&1
 if %errorlevel% == 0 (
     echo  Python found. Starting server on http://localhost:8181
-    start "" "http://localhost:8181/voxme-studio.html"
+    start "" "http://localhost:8181/index.html"
     python -m http.server 8181
     goto end
 )
@@ -21,7 +21,7 @@ if %errorlevel% == 0 (
 py --version >nul 2>&1
 if %errorlevel% == 0 (
     echo  Python found. Starting server on http://localhost:8181
-    start "" "http://localhost:8181/voxme-studio.html"
+    start "" "http://localhost:8181/index.html"
     py -m http.server 8181
     goto end
 )
@@ -30,7 +30,7 @@ if %errorlevel% == 0 (
 npx --version >nul 2>&1
 if %errorlevel% == 0 (
     echo  Node.js found. Starting server on http://localhost:8181
-    start "" "http://localhost:8181/voxme-studio.html"
+    start "" "http://localhost:8181/index.html"
     npx serve -p 8181 .
     goto end
 )
