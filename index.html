@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VoxMe Studio</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -131,17 +132,34 @@ canvas#c3d{width:100%;height:100%;display:block}
 
 <div id="rbar">
   <div class="rs"><div class="rl">Background</div><div class="bgrow" id="bgrow"></div></div>
-  <div class="rs"><div class="rl">Skeleton</div><div class="br">
-    <button class="sb on" id="sklines" onclick="setSkel('lines',this)">Lines</button>
-    <button class="sb" id="skdots"  onclick="setSkel('dots',this)">Dots</button>
-    <button class="sb" id="skboth"  onclick="setSkel('both',this)">Both</button>
-    <button class="sb" id="skoff"   onclick="setSkel('off',this)">Off</button>
-  </div></div>
-  <div class="rs"><div class="rl">3D Camera</div><div class="br">
-    <button class="sb on" id="cvfront" onclick="setCam3('front',this)">Front</button>
-    <button class="sb" id="cvside"  onclick="setCam3('side',this)">Side</button>
-    <button class="sb" id="cvorbit" onclick="setCam3('orbit',this)">Orbit</button>
-  </div></div>
+  <div class="rs"><div class="rl">Skeleton</div>
+    <div class="br" style="margin-bottom:6px;">
+      <button class="sb on" id="sklines" onclick="setSkel('lines',this)">Lines</button>
+      <button class="sb" id="skdots"  onclick="setSkel('dots',this)">Dots</button>
+      <button class="sb" id="skboth"  onclick="setSkel('both',this)">Both</button>
+      <button class="sb" id="skoff"   onclick="setSkel('off',this)">Off</button>
+    </div>
+    <div class="br">
+      <button class="sb" id="skxray" onclick="toggleXray(this)">X-Ray View: Off</button>
+    </div>
+  </div>
+  <div class="rs"><div class="rl">Custom Model</div>
+    <button class="ab abs" onclick="document.getElementById('fileUpload').click()">📤 Upload GLB / GLTF</button>
+    <input type="file" id="fileUpload" accept=".glb,.gltf" style="display:none" onchange="handleModelUpload(this)">
+    <div id="uploadStatus" style="font-size:0.6rem;color:var(--tm);margin-top:4.5px;text-align:center;word-break:break-all;">No custom model loaded</div>
+  </div>
+  <div class="rs"><div class="rl">3D Camera</div>
+    <div class="br" style="margin-bottom:6px;">
+      <button class="sb on" id="cvfront" onclick="setCam3('front',this)">Front</button>
+      <button class="sb" id="cvside"  onclick="setCam3('side',this)">Side</button>
+      <button class="sb" id="cvorbit" onclick="setCam3('orbit',this)">Orbit</button>
+    </div>
+    <div class="br">
+      <button class="sb" onclick="setCamPreset('head')">Close-up</button>
+      <button class="sb" onclick="setCamPreset('torso')">Chest</button>
+      <button class="sb" onclick="setCamPreset('full')">Full Body</button>
+    </div>
+  </div>
   <div class="rs"><div class="rl">Adjustments</div>
     <div class="slrow"><label>Size</label><input type="range" min=".5" max="2" step=".05" value="1"  oninput="onSl('sc',this)"><span id="vsc">1.0</span></div>
     <div class="slrow"><label>Depth</label><input type="range" min="2" max="9" step=".1" value="5"  oninput="onSl('dp',this)"><span id="vdp">5.0</span></div>
@@ -199,7 +217,8 @@ const BGS=[
   {n:'Blue Grid',c:0x04040e,sw:'#04040e'},{n:'Space',c:0x020209,sw:'#020209'},
   {n:'Forest',c:0x052e16,sw:'#052e16'},{n:'Sunset',c:0x431407,sw:'#431407'},
   {n:'Neon City',c:0x0c0018,sw:'#0c0018'},{n:'Arctic',c:0x0c1a2e,sw:'#0c1a2e'},
-  {n:'Lava',c:0x1c0500,sw:'#1c0500'},{n:'White',c:0xf1f5f9,sw:'#f1f5f9'}
+  {n:'Lava',c:0x1c0500,sw:'#1c0500'},{n:'White',c:0xf1f5f9,sw:'#f1f5f9'},
+  {n:'Zack D. Films',c:0x111116,sw:'#111116'}
 ];
 const EXPRS=[
   {k:'neutral',e:'😐',l:'Neutral'},{k:'happy',e:'😊',l:'Happy'},
@@ -207,7 +226,7 @@ const EXPRS=[
   {k:'wink',e:'😉',l:'Wink'},{k:'sad',e:'😢',l:'Sad'}
 ];
 const PCONN=[[0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
-const ST={ci:0,bi:0,skel:'lines',cam3:'front',sc:1,dp:5,lt:1,rec:false,recS:0,recI:null,fps:0,fpsN:0,fpsT:Date.now(),posePts:null,facePts:null,expr:'😐',exprL:'Neutral',theta:0,phi:.2,dist:5,drag:false,mx:0,my:0};
+const ST={ci:0,bi:0,skel:'lines',cam3:'front',sc:1,dp:5,lt:1,rec:false,recS:0,recI:null,fps:0,fpsN:0,fpsT:Date.now(),posePts:null,facePts:null,expr:'😐',exprL:'Neutral',theta:0,phi:.2,dist:5,drag:false,mx:0,my:0,customModel:null,customBones:null,isCustomRigged:false,xray:false};
 
 // THREE
 const canvas=document.getElementById('c3d');
@@ -230,6 +249,41 @@ new ResizeObserver(resR).observe(canvas);
 function buildBg(i){
   while(bgG.children.length)bgG.remove(bgG.children[0]);
   scene.background=new THREE.Color(BGS[i].c);
+  if (i === 8) { // Zack D. Films
+    const floorGeo = new THREE.PlaneGeometry(30, 30);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1a24,
+      roughness: 0.15,
+      metalness: 0.75
+    });
+    const customFlr = new THREE.Mesh(floorGeo, floorMat);
+    customFlr.rotation.x = -Math.PI / 2;
+    customFlr.receiveShadow = true;
+    bgG.add(customFlr);
+    
+    const grid = new THREE.GridHelper(16, 16, 0x333344, 0x222233);
+    grid.material.transparent = true;
+    grid.material.opacity = 0.2;
+    grid.position.y = 0.005;
+    bgG.add(grid);
+
+    const keyLight = new THREE.DirectionalLight(0xfff3e0, 2.0);
+    keyLight.position.set(4, 5, 4);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.bias = -0.001;
+    bgG.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0xe0f7fa, 3.0);
+    rimLight.position.set(-4, 4, -4);
+    bgG.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    fillLight.position.set(-4, 2, 4);
+    bgG.add(fillLight);
+    return;
+  }
   const grid=new THREE.GridHelper(16,32,0x1d4ed8,0x1e3a8a);
   grid.material.transparent=true;grid.material.opacity=.45;bgG.add(grid);
   const bl=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(8,6,8)),new THREE.LineBasicMaterial({color:0x1d4ed8,transparent:true,opacity:.28}));
@@ -239,7 +293,17 @@ function buildBg(i){
   if(i===4){for(let j=0;j<12;j++){const h=2+Math.random()*6;const b=new THREE.Mesh(new THREE.BoxGeometry(.8+Math.random()*.4,h,.6),new THREE.MeshPhongMaterial({color:0x0f0f1a,emissive:0x1e1b4b}));b.position.set((j-5.5)*1.4,h/2,-5-Math.random()*3);bgG.add(b);}}
 }
 
-function mat3(c,e,op,wf){return new THREE.MeshPhongMaterial({color:c,emissive:e||0,transparent:(op||1)<1,opacity:op||1,shininess:110,wireframe:!!wf});}
+function mat3(c,e,op,wf){
+  const x = ST.xray;
+  return new THREE.MeshPhongMaterial({
+    color:c,
+    emissive:e||0,
+    transparent: x || (op||1)<1,
+    opacity: x ? 0.45 : (op||1),
+    shininess:110,
+    wireframe: x || !!wf
+  });
+}
 function ap(geo,mat,x,y,z,name){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;if(name)m.name=name;CG.add(m);return m;}
 function dk(h){return Math.max(0,h-0x1a1a1a);}
 
@@ -284,6 +348,10 @@ function lm2v(lm,sc){if(!lm)return null;return V3(-(lm.x-.5)*3.5*sc,(.5-lm.y)*3.
 
 function applyPose(pose,face){
   if(!pose)return;
+  if(ST.customModel && ST.customBones) {
+    applyBonesPose(pose);
+    return;
+  }
   const sc=ST.sc,g=i=>lm2v(pose[i],sc);
   if(pose[0]){const p=g(0);blp('head',V3(p.x,p.y+.06*sc,p.z));}
   const hd=bn('head');
@@ -326,6 +394,16 @@ function applyExpr(f){
 let idleT=0;
 function doIdle(dt){
   idleT+=dt*.001;
+  if (ST.customModel && ST.customBones) {
+    const bones = ST.customBones;
+    const t = idleT;
+    if (bones.spine) bones.spine.rotation.z = Math.sin(t * 1.5) * 0.01;
+    if (bones.chest) bones.chest.rotation.x = Math.sin(t * 1.5) * 0.005;
+    if (bones.armL) bones.armL.rotation.z = 0.1 + Math.sin(t * 1.2) * 0.02;
+    if (bones.armR) bones.armR.rotation.z = -0.1 - Math.sin(t * 1.2) * 0.02;
+    if (bones.head) bones.head.rotation.y = Math.sin(t * 0.8) * 0.05;
+    return;
+  }
   const br=Math.sin(idleT*1.4)*.012*ST.sc,sw=Math.sin(idleT*.7)*.007*ST.sc;
   const t=bn('torso');if(t){t.rotation.z=sw;t.position.y=1.14*ST.sc+br;}
   const h=bn('head');if(h){h.position.y=1.74*ST.sc+br*.5;h.rotation.y=Math.sin(idleT*.5)*.06;}
@@ -475,7 +553,376 @@ function selBg(i){ST.bi=i;document.querySelectorAll('.bgsw').forEach(b=>b.classL
 window.setSkel=function(m,btn){ST.skel=m;document.querySelectorAll('[id^="sk"]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');};
 window.setCam3=function(m,btn){ST.cam3=m;document.querySelectorAll('[id^="cv"]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');if(m==='front'){cam3d.position.set(0,1.4,5);cam3d.lookAt(0,1,0);}if(m==='side'){cam3d.position.set(5,1.4,0);cam3d.lookAt(0,1,0);}};
 window.onSl=function(k,inp){const v=parseFloat(inp.value);if(k==='sc'){ST.sc=v;$('vsc',v.toFixed(1));buildChar(ST.ci,v);}if(k==='dp'){ST.dp=v;$('vdp',v.toFixed(1));cam3d.position.z=v;cam3d.lookAt(0,1,0);}if(k==='lt'){ST.lt=v;$('vlt',v.toFixed(1));keyL.intensity=1.4*v;ambL.intensity=v;}};
-window.resetAvatar=function(){ST.posePts=null;buildChar(ST.ci,ST.sc);};
+window.resetAvatar=function(){
+  ST.posePts=null;
+  if (ST.customModel) {
+    if (ST.customBones) {
+      for (const key in ST.customBones) {
+        ST.customBones[key].quaternion.set(0, 0, 0, 1);
+      }
+    }
+  } else {
+    buildChar(ST.ci,ST.sc);
+  }
+};
+
+window.toggleXray = function(btn) {
+  ST.xray = !ST.xray;
+  btn.classList.toggle('on', ST.xray);
+  btn.textContent = 'X-Ray View: ' + (ST.xray ? 'On' : 'Off');
+  
+  CG.traverse(node => {
+    if (node.isMesh) {
+      if (ST.xray) {
+        if (!node.userData.originalMat) node.userData.originalMat = node.material.clone();
+        node.material.transparent = true;
+        node.material.opacity = 0.45;
+        node.material.wireframe = true;
+      } else {
+        if (node.userData.originalMat) {
+          node.material = node.userData.originalMat.clone();
+        } else {
+          node.material.transparent = false;
+          node.material.opacity = 1.0;
+          node.material.wireframe = false;
+        }
+      }
+    }
+  });
+};
+
+window.setCamPreset = function(p) {
+  ST.cam3 = 'fixed';
+  document.querySelectorAll('[id^="cv"]').forEach(b => b.classList.remove('on'));
+  if (p === 'head') {
+    cam3d.position.set(0, 1.7, 1.2);
+    cam3d.lookAt(0, 1.7, 0);
+  } else if (p === 'torso') {
+    cam3d.position.set(0, 1.3, 2.2);
+    cam3d.lookAt(0, 1.2, 0);
+  } else if (p === 'full') {
+    cam3d.position.set(0, 1.0, 4.0);
+    cam3d.lookAt(0, 0.9, 0);
+  }
+};
+
+window.handleModelUpload = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.textContent = 'Loading model...';
+  
+  const reader = new FileReader();
+  reader.readAsArrayBuffer(file);
+  reader.onload = function(e) {
+    const loader = new THREE.GLTFLoader();
+    loader.parse(e.target.result, '', function(gltf) {
+      statusEl.textContent = 'Rigging & scaling model...';
+      
+      while(CG.children.length) CG.remove(CG.children[0]);
+      
+      const model = gltf.scene;
+      
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      
+      const scaleFactor = 1.8 / size.y;
+      model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+      
+      model.position.y = -box.min.y * scaleFactor;
+      model.position.x = -center.x * scaleFactor;
+      model.position.z = -center.z * scaleFactor;
+      
+      model.traverse(node => {
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+          if (ST.xray) {
+            if (!node.userData.originalMat) node.userData.originalMat = node.material.clone();
+            node.material.transparent = true;
+            node.material.opacity = 0.45;
+            node.material.wireframe = true;
+          }
+        }
+      });
+      
+      CG.add(model);
+      ST.customModel = model;
+      
+      let bones = [];
+      model.traverse(node => {
+        if (node.isBone) bones.push(node);
+      });
+      
+      if (bones.length > 0) {
+        ST.isCustomRigged = true;
+        ST.customBones = mapHumanoidBones(bones);
+        statusEl.textContent = `Rigged model loaded (${bones.length} bones)`;
+      } else {
+        statusEl.textContent = 'Auto-rigging static mesh...';
+        autoRigStaticMesh(model, statusEl);
+      }
+      
+      $('schar', 'Custom Model');
+    }, function(err) {
+      statusEl.textContent = '❌ Error loading GLTF';
+      console.error(err);
+    });
+  };
+};
+
+function mapHumanoidBones(bones) {
+  const map = {};
+  const searchPatterns = {
+    hips: /hips|pelvis/i,
+    spine: /spine/i,
+    chest: /chest|spine2/i,
+    neck: /neck/i,
+    head: /head/i,
+    shdL: /leftshoulder|shoulder.*l/i,
+    shdR: /rightshoulder|shoulder.*r/i,
+    armL: /leftarm|upperarm.*l|arm.*l/i,
+    armR: /rightarm|upperarm.*r|arm.*r/i,
+    forearmL: /leftforearm|forearm.*l|elbow.*l/i,
+    forearmR: /rightforearm|forearm.*r|elbow.*r/i,
+    handL: /lefthand|hand.*l|wrist.*l/i,
+    handR: /righthand|hand.*r|wrist.*r/i,
+    upLegL: /leftupleg|hip.*l|thigh.*l/i,
+    upLegR: /rightupleg|hip.*r|thigh.*r/i,
+    legL: /leftleg|shin.*l|knee.*l/i,
+    legR: /rightleg|shin.*r|knee.*r/i,
+    footL: /leftfoot|foot.*l|ankle.*l/i,
+    footR: /rightfoot|foot.*r|ankle.*r/i
+  };
+  
+  bones.forEach(b => {
+    for (const key in searchPatterns) {
+      if (searchPatterns[key].test(b.name)) {
+        map[key] = b;
+        break;
+      }
+    }
+  });
+  return map;
+}
+
+function autoRigStaticMesh(model, statusEl) {
+  const boneDefs = [
+    { name: 'hips', parent: null, pos: [0, 0.9, 0] },
+    { name: 'spine', parent: 'hips', pos: [0, 1.2, 0] },
+    { name: 'neck', parent: 'spine', pos: [0, 1.5, 0] },
+    { name: 'head', parent: 'neck', pos: [0, 1.7, 0] },
+    
+    { name: 'shdL', parent: 'spine', pos: [0.18, 1.4, 0] },
+    { name: 'armL', parent: 'shdL', pos: [0.38, 1.4, 0] },
+    { name: 'forearmL', parent: 'armL', pos: [0.65, 1.4, 0] },
+    { name: 'handL', parent: 'forearmL', pos: [0.85, 1.4, 0] },
+    
+    { name: 'shdR', parent: 'spine', pos: [-0.18, 1.4, 0] },
+    { name: 'armR', parent: 'shdR', pos: [-0.38, 1.4, 0] },
+    { name: 'forearmR', parent: 'armR', pos: [-0.65, 1.4, 0] },
+    { name: 'handR', parent: 'forearmR', pos: [-0.85, 1.4, 0] },
+    
+    { name: 'upLegL', parent: 'hips', pos: [0.15, 0.9, 0] },
+    { name: 'legL', parent: 'upLegL', pos: [0.15, 0.48, 0] },
+    { name: 'footL', parent: 'legL', pos: [0.15, 0.08, 0] },
+    
+    { name: 'upLegR', parent: 'hips', pos: [-0.15, 0.9, 0] },
+    { name: 'legR', parent: 'upLegR', pos: [-0.15, 0.48, 0] },
+    { name: 'footR', parent: 'legR', pos: [-0.15, 0.08, 0] }
+  ];
+
+  const bonesMap = {};
+  const bonesList = [];
+  
+  boneDefs.forEach(def => {
+    const bone = new THREE.Bone();
+    bone.name = def.name;
+    bonesMap[def.name] = bone;
+    bonesList.push(bone);
+  });
+  
+  boneDefs.forEach(def => {
+    const bone = bonesMap[def.name];
+    if (def.parent) {
+      const parentBone = bonesMap[def.parent];
+      parentBone.add(bone);
+      
+      const parentDef = boneDefs.find(d => d.name === def.parent);
+      bone.position.set(
+        def.pos[0] - parentDef.pos[0],
+        def.pos[1] - parentDef.pos[1],
+        def.pos[2] - parentDef.pos[2]
+      );
+    } else {
+      bone.position.set(def.pos[0], def.pos[1], def.pos[2]);
+    }
+  });
+  
+  const rootBone = bonesMap['hips'];
+  const skeleton = new THREE.Skeleton(bonesList);
+  
+  let skinnedCount = 0;
+  model.traverse(node => {
+    if (node.isMesh && !node.isSkinnedMesh) {
+      const mesh = node;
+      const geom = mesh.geometry.clone();
+      const posAttr = geom.attributes.position;
+      
+      if (!posAttr) return;
+      
+      const count = posAttr.count;
+      const skinIndices = [];
+      const skinWeights = [];
+      
+      const invWorldMatrix = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+      const localBonePos = boneDefs.map(def => {
+        const wp = new THREE.Vector3(def.pos[0], def.pos[1], def.pos[2]);
+        wp.applyMatrix4(invWorldMatrix);
+        return wp;
+      });
+      
+      for (let i = 0; i < count; i++) {
+        const vx = posAttr.getX(i);
+        const vy = posAttr.getY(i);
+        const vz = posAttr.getZ(i);
+        const v = new THREE.Vector3(vx, vy, vz);
+        
+        let firstIdx = 0, secondIdx = 0;
+        let minDist1 = Infinity, minDist2 = Infinity;
+        
+        localBonePos.forEach((bp, idx) => {
+          const dist = v.distanceTo(bp);
+          if (dist < minDist1) {
+            minDist2 = minDist1;
+            secondIdx = firstIdx;
+            
+            minDist1 = dist;
+            firstIdx = idx;
+          } else if (dist < minDist2) {
+            minDist2 = dist;
+            secondIdx = idx;
+          }
+        });
+        
+        const sum = minDist1 + minDist2;
+        let w1 = 1.0;
+        let w2 = 0.0;
+        
+        if (sum > 0.0001) {
+          w1 = minDist2 / sum;
+          w2 = minDist1 / sum;
+        }
+        
+        skinIndices.push(firstIdx, secondIdx, 0, 0);
+        skinWeights.push(w1, w2, 0, 0);
+      }
+      
+      geom.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+      geom.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+      
+      const skinnedMesh = new THREE.SkinnedMesh(geom, mesh.material);
+      skinnedMesh.name = mesh.name;
+      skinnedMesh.castShadow = true;
+      skinnedMesh.receiveShadow = true;
+      
+      skinnedMesh.add(rootBone);
+      skinnedMesh.bind(skeleton);
+      
+      const parent = mesh.parent;
+      if (parent) {
+        parent.add(skinnedMesh);
+        parent.remove(mesh);
+      }
+      skinnedCount++;
+    }
+  });
+  
+  ST.isCustomRigged = true;
+  ST.customBones = bonesMap;
+  statusEl.textContent = `Auto-rigged mesh successfully! (${skinnedCount} meshes skinned)`;
+}
+
+function applyBonesPose(pose) {
+  if (!ST.customBones) return;
+  const bones = ST.customBones;
+  const sc = ST.sc;
+  const g = i => lm2v(pose[i], sc);
+  
+  const shL = g(11), shR = g(12);
+  const elL = g(13), elR = g(14);
+  const wrL = g(15), wrR = g(16);
+  const hpL = g(23), hpR = g(24);
+  const knL = g(25), knR = g(26);
+  const akL = g(27), akR = g(28);
+  
+  const V3 = (x,y,z) => new THREE.Vector3(x,y,z);
+  const Q = () => new THREE.Quaternion();
+  
+  if (shL && shR && bones.hips) {
+    const cx = (shL.x + shR.x) / 2;
+    const cy = (shL.y + shR.y) / 2 - 0.5 * sc;
+    const cz = (shL.z + shR.z) / 2;
+    bones.hips.position.set(cx, cy, cz);
+  }
+  
+  const rotateBone = (bone, targetQ) => {
+    if (bone) bone.quaternion.slerp(targetQ, 0.25);
+  };
+  
+  if (shL && elL) {
+    const vArm = new THREE.Vector3().subVectors(elL, shL).normalize();
+    const qArm = Q().setFromUnitVectors(V3(1, 0, 0), vArm);
+    rotateBone(bones.armL, qArm);
+    
+    if (wrL) {
+      const vFore = new THREE.Vector3().subVectors(wrL, elL).normalize();
+      const qForeWorld = Q().setFromUnitVectors(V3(1, 0, 0), vFore);
+      const qForeLocal = qArm.clone().invert().multiply(qForeWorld);
+      rotateBone(bones.forearmL, qForeLocal);
+    }
+  }
+  
+  if (shR && elR) {
+    const vArm = new THREE.Vector3().subVectors(elR, shR).normalize();
+    const qArm = Q().setFromUnitVectors(V3(-1, 0, 0), vArm);
+    rotateBone(bones.armR, qArm);
+    
+    if (wrR) {
+      const vFore = new THREE.Vector3().subVectors(wrR, elR).normalize();
+      const qForeWorld = Q().setFromUnitVectors(V3(-1, 0, 0), vFore);
+      const qForeLocal = qArm.clone().invert().multiply(qForeWorld);
+      rotateBone(bones.forearmR, qForeLocal);
+    }
+  }
+  
+  if (hpL && knL) {
+    const vThigh = new THREE.Vector3().subVectors(knL, hpL).normalize();
+    const qThigh = Q().setFromUnitVectors(V3(0, -1, 0), vThigh);
+    rotateBone(bones.upLegL, qThigh);
+    
+    if (akL) {
+      const vShin = new THREE.Vector3().subVectors(akL, knL).normalize();
+      const qShinWorld = Q().setFromUnitVectors(V3(0, -1, 0), vShin);
+      const qShinLocal = qThigh.clone().invert().multiply(qShinWorld);
+      rotateBone(bones.legL, qShinLocal);
+    }
+  }
+  
+  if (hpR && knR) {
+    const vThigh = new THREE.Vector3().subVectors(knR, hpR).normalize();
+    const qThigh = Q().setFromUnitVectors(V3(0, -1, 0), vThigh);
+    rotateBone(bones.upLegR, qThigh);
+    
+    if (akR) {
+      const vShin = new THREE.Vector3().subVectors(akR, knR).normalize();
+      const qShinWorld = Q().setFromUnitVectors(V3(0, -1, 0), vShin);
+      const qShinLocal = qThigh.clone().invert().multiply(qShinWorld);
+      rotateBone(bones.legR, qShinLocal);
+    }
+  }
+};
 function setRecUI(on){
   ST.rec=on;const br=$('btnRec'),bs=$('btnStop'),pr=$('prec'),it=$('itgrec'),rb=$('recbadge'),sr=$('srec'),sd=$('sdivR');
   if(br)br.style.display=on?'none':'';if(bs)bs.style.display=on?'':'none';
